@@ -78,11 +78,11 @@ void read_input() {
     int read_val;
 
     while (1) {
-        int num_delimiters = 0;
+        int num_newlines = 0;
         read_val = read(0, buff, sizeof(buff));
         for (int i = 0; i < read_val; i++) {
             if (buff[i] == '\r' || buff[i] == '\n') {
-                num_delimiters++;
+                num_newlines++;
             }
             if (buff[i] == 4) {
                 // EOF
@@ -95,11 +95,11 @@ void read_input() {
 
         }
         // map any delimeter characters (like '\r' or '\n' to '\r\n'), if any
-        if (num_delimiters) {
-            map_to_newline(read_val + num_delimiters);
+        if (num_newlines) {
+            map_to_newline(read_val + num_newlines);
         }
 
-        int write_amount = write(1, buff, read_val + num_delimiters);
+        int write_amount = write(1, buff, read_val + num_newlines);
         if (write_amount == -1) {
             return_error("write()");
         }
