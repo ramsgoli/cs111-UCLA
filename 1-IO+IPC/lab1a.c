@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
 
         // the pollfds should only listen for input or error events
         for (int i = 0; i < 2; i++) {
-            poll_fds[i].events = 0;
+            poll_fds[i].events = POLLIN | POLLHUP | POLLERR;
         }
     }
 
@@ -236,26 +236,23 @@ int main(int argc, char *argv[]) {
                         map_to_newline(read_val);
                         int write_amount = write(1, mapped_buff, read_val + num_newlines);
                         if (write_amount == -1) {
-                            return_error("write()");
+                            return_error("write(1)");
                         }
 
                         map_to_linefeed(read_val);
                         write_amount = write(to_child_pipe[1], mapped_buff, read_val + num_newlines);
                         if (write_amount == -1) {
-                            return_error("write()");
+                            return_error("write(2)");
                         }
                     } else {
                         int write_amount = write(1, buff, read_val);
                         if (write_amount == -1) {
-                            return_error("write()");
+                            return_error("write(3)");
                         }
-                        write_amount = write(to_child_pipe[1], mapped_buff, read_val + num_newlines);
+                        write_amount = write(to_child_pipe[1], buff, read_val);
                         if (write_amount == -1) {
-                            return_error("write()");
+                            return_error("write(4)");
                         }
-                    }
-                    if (should_break) {
-                        break;
                     }
                 }
             }
