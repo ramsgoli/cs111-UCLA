@@ -2,12 +2,21 @@
 #include <stdio.h>
 #include <unistd.h>
 
-int main() {
-    char buff[256];
+typedef struct {
+    char a;
+    char b;
+} my_struct;
 
-    int num = read(0, &buff, sizeof(buff));
-    printf("%d\n", num);
-    write(1, &buff, num);
+my_struct a;
+my_struct b;
+
+int main() {
+
+    my_struct *my_array[2] = {&a, &b};
+    a.a = 'h';
+    b.b = 'j';
+
+    printf("%c\n", my_array[0]->a);
 
     exit(0);
 }
