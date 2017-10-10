@@ -24,7 +24,7 @@ typedef int bool;
 struct termios old_term_attrs;
 
 // size of the buffer we will use to read input from
-const int BUFFER_SIZE = 128;
+const int BUFFER_SIZE = 2048;
 char *buff;
 char *mapped_buff;
 bool shell = false;
@@ -172,8 +172,8 @@ int main(int argc, char *argv[]) {
             close(to_child_pipe[0]);
             close(from_child_pipe[1]);
 
-            keyboard_input.fd = STDIN_FILENO;
-            pipe_input.fd = from_child_pipe[0];
+            poll_fds[0].fd = STDIN_FILENO;
+            poll_fds[1].fd = from_child_pipe[0];
         } else if (child_pid == 0) { // child process
             close(to_child_pipe[1]);
             close(from_child_pipe[0]);
@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
 
         // the pollfds should only listen for input or error events
         for (int i = 0; i < 2; i++) {
-            poll_fds[i].events = POLLIN | POLLHUP | POLLERR;
+            poll_fds[i].events = POLLIN;
         }
     }
 
@@ -212,46 +212,73 @@ int main(int argc, char *argv[]) {
                 return_error("poll()");
             }
             for (int i = 0; i < 2; i++) {
-                if (poll_fds[i].revents == POLLIN) {
+                if (poll_fds[i].revents & POLLIN) {
                     // data to read on this file descriptor
                     read_val = read(poll_fds[i].fd, buff, BUFFER_SIZE);
-                    for (int i = 0; i < read_val; i++) {
-                        if (buff[i] == '\r' || buff[i] == '\n') {
-                            num_newlines++;
+                    if (i == 0) {
+                        // getting data from keyboard
+                        // we echo it to stdout, and forward it to the shell
+                        int num_cr_or_linefeeds = 0;
+                        for (int j = 0; j < read_val; j++) {
+                            if (buff[j] == '\r' || buff[j] == '\n') {
+                                num_cr_or_linefeeds++;
+                            }
+                            if (buff[i] == 4) {
+                                exit(1);
+                            }
                         }
-                        if (buff[i] == 4) {
-                            // EOF
-                            should_break = true;
-                            // TODO: FIX
-                            exit(1);
-                            break;
-                        }
-                        if (buff[i] == 3) {
-                            // SIGINT. Kill the process
-                            kill(getpid(), SIGINT);
-                        }
+                        if (num_cr_or_linefeeds) {
+                            // we echo as '\r\n', but write to the shell as '\n'
+                            map_to_newline(read_val+num_cr_or_linefeeds);
 
-                    }
-                    if (num_newlines) {
-                        map_to_newline(read_val);
-                        int write_amount = write(1, mapped_buff, read_val + num_newlines);
-                        if (write_amount == -1) {
-                            return_error("write(1)");
-                        }
+                            int write_amount = write(1, mapped_buff, read_val + num_newlines);
+                            if (write_amount == -1) {
+                                return_error("write(1)");
+                            }
 
-                        map_to_linefeed(read_val);
-                        write_amount = write(to_child_pipe[1], mapped_buff, read_val + num_newlines);
-                        if (write_amount == -1) {
-                            return_error("write(2)");
+                            map_to_linefeed(read_val);
+
+                            write_amount = write(to_child_pipe[1], mapped_buff, read_val);
+                            if (write_amount == -1) {
+                                return_error("write(1)");
+                            }
+                        } else {
+                            // echo to stdout and forward to shell
+                            int write_amount = write(1, buff, read_val);
+                            if (write_amount == -1) {
+                                return_error("write(1)");
+                            }
+
+                            write_amount = write(to_child_pipe[1], buff, read_val);
+                            if (write_amount == -1) {
+                                return_error("write(1)");
+                            }
                         }
                     } else {
-                        int write_amount = write(1, buff, read_val);
-                        if (write_amount == -1) {
-                            return_error("write(3)");
+                        // getting data from child process
+                        // just write to stdout
+                        int num_linefeeds = 0;
+                        for (int j = 0; j < read_val; j++) {
+                            if (buff[j] == '\n') {
+                                num_linefeeds++;
+                            }
+                            if (buff[i] == 4) {
+                                exit(1);
+                            }
                         }
-                        write_amount = write(to_child_pipe[1], buff, read_val);
-                        if (write_amount == -1) {
-                            return_error("write(4)");
+
+                        if (num_linefeeds) {
+                            map_to_newline(read_val+num_linefeeds);
+
+                            int write_amount = write(1, mapped_buff, read_val+num_linefeeds);
+                            if (write_amount == -1) {
+                                return_error("write(1)");
+                            }
+                        } else {
+                            int write_amount = write(1, buff, read_val);
+                            if (write_amount == -1) {
+                                return_error("write(1)");
+                            }
                         }
                     }
                 }
