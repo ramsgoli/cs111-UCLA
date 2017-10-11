@@ -55,6 +55,18 @@ void return_error(char *error) {
 
 void restore_term_attrs() {
     tcsetattr(0, TCSANOW, &old_term_attrs);
+
+    int status;
+    pid_t w;
+
+    w = waitpid(child_pid, &status, 0);
+    if (w == -1) {
+        return_error("waitpid()");
+    }
+
+    if (WIFEXITED(status)) {
+        fprintf(stderr, "SHELL EXIT SIGNAL=%d STATUS=%d\n", WEXITSTATUS(status) & 0x007f, WEXITSTATUS(status) & 0xff00);
+    }
 }
 
 void set_non_canonical_input_mode() {
@@ -225,6 +237,7 @@ int main(int argc, char *argv[]) {
     int read_val;
     bool should_break = false;
     int num_newlines = 0;
+    bool should_exit = false;
 
     while (1) {
         if (shell) {
@@ -245,8 +258,15 @@ int main(int argc, char *argv[]) {
                             if (buff[j] == '\r' || buff[j] == '\n') {
                                 num_cr_or_linefeeds++;
                             }
+                            if (buff[i] == 3) {
+                                int kill_ret = kill(child_pid, SIGINT);
+                                if (kill_ret == -1) {
+                                    return_error("kill()");
+                                }
+                            }
                             if (buff[i] == 4) {
-                                exit(1);
+                                // we close the pipe to the child
+                                should_exit = true;
                             }
                         }
                         if (num_cr_or_linefeeds) {
@@ -260,6 +280,9 @@ int main(int argc, char *argv[]) {
 
                             map_to_linefeed(read_val);
 
+                            if (should_exit) {
+                                continue;
+                            }
                             write_amount = write(to_child_pipe[1], mapped_buff, read_val);
                             if (write_amount == -1) {
                                 return_error("write(1)");
@@ -271,6 +294,9 @@ int main(int argc, char *argv[]) {
                                 return_error("write(1)");
                             }
 
+                            if (should_exit) {
+                                continue;
+                            }
                             write_amount = write(to_child_pipe[1], buff, read_val);
                             if (write_amount == -1) {
                                 return_error("write(1)");
@@ -304,6 +330,12 @@ int main(int argc, char *argv[]) {
                     }
                 }
             }
+            // now we process any exit signal
+            if (should_exit) {
+                close(to_child_pipe[1]);
+                exit(1);
+            }
+
         } else {
             // no shell. Do everything normally
             read_val = read(0, buff, sizeof(buff));
@@ -316,11 +348,6 @@ int main(int argc, char *argv[]) {
                     should_break = true;
                     break;
                 }
-                if (buff[i] == 3) {
-                    // SIGINT. Kill the process
-                    kill(getpid(), SIGINT);
-                }
-
             }
             if (should_break) {
                 break;
