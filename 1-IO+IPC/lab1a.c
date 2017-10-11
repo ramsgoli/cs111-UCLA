@@ -101,21 +101,43 @@ void map_to_linefeed(int size) {
     }
 }
 
+void map_lf_to_newline(int size) {
+    free(mapped_buff);
+    mapped_buff = (char *)malloc(BUFFER_SIZE);
+    int buff_i = 0;
+    int new_buff_i = 0;
+
+    while (new_buff_i < size) {
+        if (buff[buff_i] == '\n') {
+            mapped_buff[new_buff_i] = '\r';
+            new_buff_i++;
+            mapped_buff[new_buff_i] = '\n';
+        }
+        else {
+            mapped_buff[new_buff_i] = buff[buff_i];
+        }
+        buff_i++;
+        new_buff_i++;
+    }
+}
+
 void map_to_newline(int size) {
     free(mapped_buff);
     mapped_buff = (char *)malloc(BUFFER_SIZE);
-    int i = 0;
+    int buff_i = 0;
+    int new_buff_i = 0;
 
-    while (i < size) {
-        if (buff[i] == '\r' || buff[i] == '\n') {
-            mapped_buff[i] = '\r';
-            i++;
-            mapped_buff[i] = '\n';
+    while (new_buff_i < size) {
+        if (buff[buff_i] == '\r' || buff[buff_i] == '\n') {
+            mapped_buff[new_buff_i] = '\r';
+            new_buff_i++;
+            mapped_buff[new_buff_i] = '\n';
         }
         else {
-            mapped_buff[i] = buff[i];
+            mapped_buff[new_buff_i] = buff[buff_i];
         }
-        i++;
+        buff_i++;
+        new_buff_i++;
     }
 }
 
@@ -211,6 +233,7 @@ int main(int argc, char *argv[]) {
             if (pret == -1) {
                 return_error("poll()");
             }
+            int num_cr_or_linefeeds = 0;
             for (int i = 0; i < 2; i++) {
                 if (poll_fds[i].revents & POLLIN) {
                     // data to read on this file descriptor
@@ -218,7 +241,6 @@ int main(int argc, char *argv[]) {
                     if (i == 0) {
                         // getting data from keyboard
                         // we echo it to stdout, and forward it to the shell
-                        int num_cr_or_linefeeds = 0;
                         for (int j = 0; j < read_val; j++) {
                             if (buff[j] == '\r' || buff[j] == '\n') {
                                 num_cr_or_linefeeds++;
@@ -231,7 +253,7 @@ int main(int argc, char *argv[]) {
                             // we echo as '\r\n', but write to the shell as '\n'
                             map_to_newline(read_val+num_cr_or_linefeeds);
 
-                            int write_amount = write(1, mapped_buff, read_val + num_newlines);
+                            int write_amount = write(1, mapped_buff, read_val + num_cr_or_linefeeds);
                             if (write_amount == -1) {
                                 return_error("write(1)");
                             }
@@ -262,13 +284,12 @@ int main(int argc, char *argv[]) {
                             if (buff[j] == '\n') {
                                 num_linefeeds++;
                             }
-                            if (buff[i] == 4) {
+                            if (buff[j] == 4) {
                                 exit(1);
                             }
                         }
-
                         if (num_linefeeds) {
-                            map_to_newline(read_val+num_linefeeds);
+                            map_lf_to_newline(read_val+num_linefeeds);
 
                             int write_amount = write(1, mapped_buff, read_val+num_linefeeds);
                             if (write_amount == -1) {
@@ -319,7 +340,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-
     }
 
     // clean up our buffers
