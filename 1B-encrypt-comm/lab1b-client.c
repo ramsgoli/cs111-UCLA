@@ -10,6 +10,10 @@ EMAIL: ramsgoli@gmail.com
 #include <termios.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <netdb.h>
 
 // Shell options
 #define LOG 'l'
@@ -34,6 +38,9 @@ char *ENCRYPT_FILENAME;
 #define BUFFER_SIZE 256
 char buff[BUFFER_SIZE];
 
+// Which HOST we are connecting to. We will be connecting to localhost
+const char HOST_NAME[] = "localhost";
+
 // used to restore the terminal settings upon shutdown
 struct termios old_term_attrs;
 
@@ -55,7 +62,7 @@ Prints out a usage message in case bad arguments are passed to the program
 
 void restore_term_attrs() {
 /*
-Restores terminal attributes
+Restores terminal attributes from settings in global old_term_attrs struct
  */
     tcsetattr(0, TCSANOW, &old_term_attrs);
 }
@@ -157,15 +164,48 @@ int main(int argc, char *argv[]) {
     }
 
     // check that PORT (mandatory) has been specified
-    if (CLIENT_PORT == -1 || CLIENT_PORT == 0) {
+    if (CLIENT_PORT <= 0) {
         print_usage();
         exit(1);
     }
 
     set_non_canonical_input_mode();
 
+    int sockfd;
+
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
+
+    sockfd = socket(AF_INET, // Address domain of the socket (Internet domain)
+                    SOCK_STREAM, // stream socket in which chars are read in a continuous stream
+                    0 // the protocol
+    );
+    if (sockfd < 0) {
+        return_error("socket()");
+    }
+
+    server = gethostbyname(HOST_NAME);
+    if (server == NULL) {
+        // server could not be found
+        return_error("gethostbyname()");
+    }
+
+    // zero out all bytes in the sockadd_in struct
+    memset(&serv_addr, 0, sizeof(serv_addr));
+
+    // set address family of the sockaddr_in struct
+    serv_addr.sin_family = AF_INET;
+
+    // copy fields in serv_addr from server struct
+    memcpy((char *) &serv_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
+    serv_addr.sin_port = htons(CLIENT_PORT);
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        return_error("connect()");
+    }
+
     while(true) {
-        bool success = read_write(STDIN_FILENO, STDOUT_FILENO);
+        bool success = read_write(STDIN_FILENO, sockfd);
         if (!success) {
             break;
         }

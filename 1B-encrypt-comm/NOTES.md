@@ -1,7 +1,7 @@
 # Socket Programming
 
 ## bzero
-* DONT USE BZERO
+* DONT USE BZERO (used to zero out bytes)
 * use memset or memcpy
 
 ## Encryption
