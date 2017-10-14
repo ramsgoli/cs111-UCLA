@@ -2,6 +2,8 @@
 # EMAIL: ramsgoli@gmail.com
 # ID: 604751659
 
+.SILENT:
+
 default: lab0
 
 lab0: lab0.c

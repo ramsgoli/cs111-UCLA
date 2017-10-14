@@ -27,7 +27,7 @@ void print_usage() {
     fprintf(stderr, "%s\n", "Correct usage: ./lab0 [--segfault] [--catch] [--input=FILE_NAME] [--output=FILE_NAME]");
 }
 
-void handleInput(char file_name[]) {
+void handleInput(char *file_name) {
     int ifd = open(file_name, O_RDONLY);
     if (ifd >= 0) {
         close(0);
@@ -40,7 +40,7 @@ void handleInput(char file_name[]) {
     }
 }
 
-void handleOutput(char file_name[]) {
+void handleOutput(char *file_name) {
     int ofd = creat(file_name, 0666);
     if (ofd >= 0) {
         close(1);
@@ -113,12 +113,10 @@ int main(int argc, char *argv[]) {
 
         switch(c) {
             case INPUT: {
-                input = (char *)malloc(sizeof(optarg));
                 input = optarg;
                 break;
             }
             case OUTPUT: {
-                output = (char *)malloc(sizeof(optarg));
                 output = optarg;
                 break;
             }

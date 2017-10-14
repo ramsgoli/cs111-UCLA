@@ -5,16 +5,19 @@ ID: 604751659
 Included files:
 - lab0.c 
 	The file lab0.c contains the source code for project 0. It is a program that redirects stdin to stdout, and supports
-	redirecting using specific files as stdin and stdout.
+	redirecting using specific files as stdin and stdout by using the --input and --output options. It also supports creating a segmentation
+	fault by using the --segfault options, and catching the fault with the --catch option (so that the program exits cleanly).
 - Makefile
 	Used for building the program binary and tarball
 - backtrace.png
 	A screenshot of the segault and associated stack trace
 - breakpoint.png
 	A screenshot of the breakpoint placed in the code and variable inspection of the NULL pointer
+- README
+	this file
 
 Smoke Test;
-I tested the correct use of the --input and --output flag by redirecting the content of lab0.c to a dummy file names output.txt
+I tested the correct use of the --input and --output flag by redirecting the content of lab0.c to a dummy file named output.txt
 I then asserted that the return code of this command was 0, indicating success. 
 
 I tested that using an unknown option returns an exit code of 1.
