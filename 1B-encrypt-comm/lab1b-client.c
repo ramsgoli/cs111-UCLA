@@ -83,7 +83,7 @@ void term_handler() {
     exit(0);
 }
 
-bool read_write(int INPUT_FD, int OUTPUT_FD) {
+bool read_write(int INPUT_FD, int OUTPUT_FD, bool from_keyboard) {
 /*
 Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
 */
@@ -93,17 +93,28 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
     }
 
     for (int i = 0; i < read_val; i++) {
-        if (buff[i] == 4) {
-            return false;
-        } else if (buff[i] == '\r' || buff[i] == '\n') {
+        if (buff[i] == '\n') {
             char newline_buff[2] = {'\r', '\n'};
             if (write(OUTPUT_FD, newline_buff, 2) == -1) {
-                return_error("write()");
+                return_error("write() to stdout");
             }
         } else {
-            int write_amount = write(OUTPUT_FD, buff+i, 1);
-            if (write_amount == -1) {
-                return_error("write()");
+            if (write(OUTPUT_FD, buff+i, 1) == -1) {
+                return_error("write() to stdout");
+            }
+        }
+
+        if (from_keyboard) {
+            // also echo to stdout
+            if (buff[i] == '\r' || buff[i] == '\n') {
+                char newline_buff[2] = {'\r', '\n'};
+                if (write(STDOUT_FILENO, newline_buff, 2) == -1) {
+                    return_error("write() to stdout");
+                }
+            } else {
+                if (write(STDOUT_FILENO, buff+i, 1) == -1) {
+                    return_error("write() to stdout");
+                }
             }
         }
     }
@@ -153,9 +164,22 @@ void start_listening() {
         if (poll_fds[0].revents & POLLIN) {
             // from keyboard
             // echo to the terminal and send to the socket
-            if (!read_write(poll_fds[0].fd, STDOUT_FILENO)) {
+            if (!read_write(poll_fds[0].fd, sockfd, true)) {
                 exit(1);
             }
+        }
+
+        if (poll_fds[1].revents & POLLIN) {
+            // from socket
+            // echo to terminal
+            if (!read_write(poll_fds[1].fd, STDOUT_FILENO, false)) {
+                exit(1);
+            }
+        }
+
+        if ((poll_fds[0].revents & (POLLERR | POLLHUP)) ||
+            (poll_fds[1].revents & (POLLERR | POLLHUP))) {
+                exit(0);
         }
     }
 }
