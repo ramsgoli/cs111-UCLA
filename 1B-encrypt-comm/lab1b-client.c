@@ -14,6 +14,8 @@ EMAIL: ramsgoli@gmail.com
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <poll.h>
+#include <signal.h>
 
 // Shell options
 #define LOG 'l'
@@ -44,6 +46,16 @@ const char HOST_NAME[] = "localhost";
 // used to restore the terminal settings upon shutdown
 struct termios old_term_attrs;
 
+// hold the file descriptor of the socket connection
+int sockfd;
+
+struct sockaddr_in serv_addr;
+struct hostent *server;
+
+// hold the pollfd structs that hold status information about
+// server communication and keyboard communication
+struct pollfd poll_fds[2];
+
 void return_error(char *error) {
 /*
 Print any error message to stderr and exit
@@ -65,6 +77,10 @@ void restore_term_attrs() {
 Restores terminal attributes from settings in global old_term_attrs struct
  */
     tcsetattr(0, TCSANOW, &old_term_attrs);
+}
+
+void term_handler() {
+    exit(0);
 }
 
 bool read_write(int INPUT_FD, int OUTPUT_FD) {
@@ -126,6 +142,62 @@ Puts the keyboard (FD 0) in non-canonical input mode with no-echo
     }
 }
 
+void start_listening() {
+    // enter the INFINITE LOOP
+    while(true) {
+        int p_ret = poll(poll_fds, 2, 0);
+        if (p_ret < 0) {
+            return_error("poll()");
+        }
+
+        if (poll_fds[0].revents & POLLIN) {
+            // from keyboard
+            // echo to the terminal and send to the socket
+            if (!read_write(poll_fds[0].fd, STDOUT_FILENO)) {
+                exit(1);
+            }
+        }
+    }
+}
+
+void setup_socket() {
+    sockfd = socket(AF_INET, // Address domain of the socket (Internet domain)
+                    SOCK_STREAM, // stream socket in which chars are read in a continuous stream
+                    0 // the protocol
+    );
+    if (sockfd < 0) {
+        return_error("socket()");
+    }
+
+    server = gethostbyname(HOST_NAME);
+    if (server == NULL) {
+        // server could not be found
+        return_error("gethostbyname()");
+    }
+
+    // zero out all bytes in the sockadd_in struct
+    memset(&serv_addr, 0, sizeof(serv_addr));
+
+    // set address family of the sockaddr_in struct
+    serv_addr.sin_family = AF_INET;
+
+    // copy fields in serv_addr from server struct
+    memcpy((char *) &serv_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
+    serv_addr.sin_port = htons(CLIENT_PORT);
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
+        return_error("connect()");
+    }
+
+    poll_fds[0].fd = STDIN_FILENO;
+    poll_fds[1].fd = sockfd;
+
+    poll_fds[0].events = POLLIN;
+    poll_fds[1].events = POLLIN;
+
+    signal(SIGTERM, term_handler);
+}
+
 int main(int argc, char *argv[]) {
     int c;
     struct option long_options[] = {
@@ -170,45 +242,8 @@ int main(int argc, char *argv[]) {
     }
 
     set_non_canonical_input_mode();
+    setup_socket();
+    start_listening();
 
-    int sockfd;
-
-    struct sockaddr_in serv_addr;
-    struct hostent *server;
-
-    sockfd = socket(AF_INET, // Address domain of the socket (Internet domain)
-                    SOCK_STREAM, // stream socket in which chars are read in a continuous stream
-                    0 // the protocol
-    );
-    if (sockfd < 0) {
-        return_error("socket()");
-    }
-
-    server = gethostbyname(HOST_NAME);
-    if (server == NULL) {
-        // server could not be found
-        return_error("gethostbyname()");
-    }
-
-    // zero out all bytes in the sockadd_in struct
-    memset(&serv_addr, 0, sizeof(serv_addr));
-
-    // set address family of the sockaddr_in struct
-    serv_addr.sin_family = AF_INET;
-
-    // copy fields in serv_addr from server struct
-    memcpy((char *) &serv_addr.sin_addr.s_addr, (char *)server->h_addr, server->h_length);
-    serv_addr.sin_port = htons(CLIENT_PORT);
-
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        return_error("connect()");
-    }
-
-    while(true) {
-        bool success = read_write(STDIN_FILENO, sockfd);
-        if (!success) {
-            break;
-        }
-    }
     exit(0);
 }
