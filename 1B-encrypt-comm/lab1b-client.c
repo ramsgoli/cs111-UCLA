@@ -12,6 +12,8 @@ EMAIL: ramsgoli@gmail.com
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <poll.h>
@@ -32,6 +34,7 @@ int CLIENT_PORT = -1;
 
 // name of the log file
 char *LOG_FILE;
+int log_fd = -1;
 
 // name of the encryption file name
 char *ENCRYPT_FILENAME;
@@ -79,10 +82,6 @@ Restores terminal attributes from settings in global old_term_attrs struct
     tcsetattr(0, TCSANOW, &old_term_attrs);
 }
 
-void term_handler() {
-    exit(0);
-}
-
 bool read_write(int INPUT_FD, int OUTPUT_FD, bool from_keyboard) {
 /*
 Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
@@ -90,6 +89,11 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
     int read_val = read(INPUT_FD, buff, BUFFER_SIZE);
     if (read_val == -1) {
         return_error("read()");
+    }
+
+    if (!from_keyboard && log_fd != -1) {
+        // write to our log file
+        dprintf(log_fd, "RECEIVED %d bytes: %s\n", read_val, buff);
     }
 
     for (int i = 0; i < read_val; i++) {
@@ -118,8 +122,33 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
             }
         }
     }
+    if (from_keyboard && log_fd != -1) {
+        // write to our log file
+        dprintf(log_fd, "SENT %d bytes: %s\n", read_val, buff);
+    }
 
     return true;
+}
+
+void handle_log() {
+/*
+Open a log file to record all data going to and coming from network
+ */
+    log_fd = creat(LOG_FILE, 0666);
+    if (log_fd < 0) {
+        return_error("creat()");
+    }
+}
+
+void process_shutdown() {
+    while (poll_fds[1].revents & POLLIN) {
+        if ((poll_fds[0].revents & (POLLERR | POLLHUP)) ||
+            (poll_fds[1].revents & (POLLERR | POLLHUP))) {
+                break;
+            }
+
+        read_write(poll_fds[1].fd, STDOUT_FILENO, false);
+    }
 }
 
 void set_non_canonical_input_mode() {
@@ -155,6 +184,8 @@ Puts the keyboard (FD 0) in non-canonical input mode with no-echo
 
 void start_listening() {
     // enter the INFINITE LOOP
+    atexit(process_shutdown);
+
     while(true) {
         int p_ret = poll(poll_fds, 2, 0);
         if (p_ret < 0) {
@@ -218,8 +249,6 @@ void setup_socket() {
 
     poll_fds[0].events = POLLIN;
     poll_fds[1].events = POLLIN;
-
-    signal(SIGTERM, term_handler);
 }
 
 int main(int argc, char *argv[]) {
@@ -246,6 +275,7 @@ int main(int argc, char *argv[]) {
             }
             case LOG: {
                 LOG_FILE = optarg;
+                handle_log();
                 break;
             }
             case ENCRYPT: {

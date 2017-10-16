@@ -7,11 +7,13 @@ EMAIL: ramsgoli@gmail.com
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <poll.h>
 #include <signal.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <getopt.h>
 
@@ -72,6 +74,16 @@ void process_shutdown() {
     close(to_child_pipe[1]);
     close(from_child_pipe[0]);
     close(from_child_pipe[1]);
+
+    int status;
+    pid_t w = waitpid(child_pid, &status, 0);
+    if (w == -1) {
+        return_error("waitpid()");
+    }
+
+    if (WIFEXITED(status)) {
+        fprintf(stderr, "SHELL EXIT SIGNAL=%d STATUS=%d\n", (status & 0x7f), (status & 0xff00) >> 8);
+    }
 }
 
 bool read_write(int INPUT_FD, int OUTPUT_FD, bool from_socket) {
@@ -87,11 +99,13 @@ PARAMS:
 
     int read_val = read(INPUT_FD, buff, BUFFER_SIZE);
     if (read_val == -1) {
-        return_error("read()");
+        close(to_child_pipe[1]);
+        return false;
     }
 
     for (int i = 0; i < read_val; i++) {
         if (buff[i] == 4) {
+            // ^D
             // we close the write end of pipe but continue processing the input
             close(to_child_pipe[1]);
             success = false;
@@ -113,6 +127,10 @@ PARAMS:
     }
 
     return success;
+}
+
+void handle_sigpipe() {
+    exit(0);
 }
 
 void handle_connection() {
@@ -188,6 +206,7 @@ void accept_connections() {
 
         dup2(to_child_pipe[0], STDIN_FILENO);
         dup2(from_child_pipe[1], STDOUT_FILENO);
+        dup2(from_child_pipe[1], STDERR_FILENO);
         close(to_child_pipe[0]);
         close(from_child_pipe[1]);
 
