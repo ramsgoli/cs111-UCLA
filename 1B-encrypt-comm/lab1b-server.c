@@ -16,6 +16,7 @@ EMAIL: ramsgoli@gmail.com
 #include <sys/wait.h>
 #include <netinet/in.h>
 #include <getopt.h>
+#include <mcrypt.h>
 
 // setup boolean definition
 typedef int bool;
@@ -24,6 +25,7 @@ typedef int bool;
 
 // Shell options
 #define PORT 'p'
+#define ENCRYPT 'e'
 
 // Buffer used to hold input data and write output data
 #define BUFFER_SIZE 256
@@ -35,6 +37,9 @@ int SERVER_PORT = -1;
 // Which HOST we are connecting to. We will be connecting to localhost
 const char HOST_NAME[] = "localhost";
 
+// name of the encryption file name
+char *ENCRYPT_FILENAME;
+
 // used to send data and read date from the child process shell
 int to_child_pipe[2];
 int from_child_pipe[2];
@@ -44,6 +49,7 @@ pid_t child_pid = -1;
 char execvp_filename[] = "/bin/bash";
 char *execvp_argv[2] = {execvp_filename, NULL};
 
+// socket structures
 int sockfd, newsockfd;
 socklen_t clilen;
 struct sockaddr_in serv_addr, cli_addr;
@@ -52,11 +58,20 @@ struct sockaddr_in serv_addr, cli_addr;
 // shell and client communication
 struct pollfd poll_fds[2];
 
+// Encryption initializations
+char ENCRYPT_ALGORITHM[] = "twofish";
+MCRYPT encrypt_fd;
+MCRYPT decrypt_fd;
+char ENCRYPTION_KEY[100];
+char *encrypt_IV;
+char *decrypt_IV;
+FILE * encrypt_file;
+
 void print_usage() {
 /*
 Prints out a usage message in case bad arguments are passed to the program
  */
-    fprintf(stderr, "%s\n", "Correct usage: ./lab1b-client --port=INTEGER [--encrypt=file_name] [--log=file_name]");
+    fprintf(stderr, "%s\n", "Correct usage: ./lab1b-server --port=INTEGER [--encrypt=file_name]");
 }
 
 void return_error(char *error) {
@@ -101,6 +116,16 @@ PARAMS:
     if (read_val == -1) {
         close(to_child_pipe[1]);
         return false;
+    }
+
+    if (from_socket && encrypt_file != NULL) {
+        // need to decrypt
+        mdecrypt_generic(decrypt_fd, &buff, read_val);
+    }
+
+    if (!from_socket && encrypt_file != NULL) {
+        // need to encrypt the buffer
+        mcrypt_generic(encrypt_fd, &buff, read_val);
     }
 
     for (int i = 0; i < read_val; i++) {
@@ -217,6 +242,49 @@ void accept_connections() {
     }
 }
 
+void setup_encryption() {
+    encrypt_file = fopen(ENCRYPT_FILENAME, "r");
+    if (encrypt_file) {
+        fscanf(encrypt_file, "%s", ENCRYPTION_KEY);
+    }
+
+    encrypt_fd = mcrypt_module_open(ENCRYPT_ALGORITHM, NULL, "cfb", NULL);
+    if (encrypt_fd==MCRYPT_FAILED) {
+        return_error("mcrypt_module_open()");
+    }
+
+    decrypt_fd = mcrypt_module_open(ENCRYPT_ALGORITHM, NULL, "cfb", NULL);
+    if (decrypt_fd==MCRYPT_FAILED) {
+        return_error("mcrypt_module_open()");
+    }
+
+    int encrypt_size = mcrypt_enc_get_iv_size(encrypt_fd);
+    int decrypt_size = mcrypt_enc_get_iv_size(decrypt_fd);
+    char vec[] = "12345";
+
+    encrypt_IV = malloc(encrypt_size);
+    for (int i = 0; i < encrypt_size; i++) {
+        encrypt_IV[i] = vec[i % 5];
+    }
+
+    decrypt_IV = malloc(decrypt_size);
+    for (int i = 0; i < encrypt_size; i++) {
+        decrypt_IV[i] = vec[i % 5];
+    }
+
+    int j = mcrypt_generic_init(encrypt_fd, ENCRYPTION_KEY, 16, encrypt_IV);
+    if (j < 0) {
+        mcrypt_perror(j);
+        return_error("mcrypt_generic_init()");
+    }
+
+    j = mcrypt_generic_init(decrypt_fd, ENCRYPTION_KEY, 16, decrypt_IV);
+    if (j < 0) {
+        mcrypt_perror(j);
+        return_error("mcrypt_generic_init()");
+    }
+}
+
 void setup_socket() {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
@@ -242,12 +310,13 @@ int main(int argc, char *argv[]) {
     int c;
     struct option long_options[] = {
         {"port", required_argument, NULL, PORT},
+        {"encrypt", required_argument, NULL, ENCRYPT},
         {0,0,0,0}
     };
 
     while(true) {
         int option_index = 0;
-        c = getopt_long(argc, argv, "p:", long_options, &option_index);
+        c = getopt_long(argc, argv, "p:e:", long_options, &option_index);
 
         if (c == -1) {
             break;
@@ -256,6 +325,11 @@ int main(int argc, char *argv[]) {
         switch(c) {
             case PORT: {
                 SERVER_PORT = (int)atol(optarg);
+                break;
+            }
+            case ENCRYPT: {
+                ENCRYPT_FILENAME = optarg;
+                setup_encryption();
                 break;
             }
             default: {

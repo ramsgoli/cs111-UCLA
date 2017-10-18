@@ -64,8 +64,10 @@ struct pollfd poll_fds[2];
 char ENCRYPT_ALGORITHM[] = "twofish";
 MCRYPT encrypt_fd;
 MCRYPT decrypt_fd;
-char ENCRYPTION_KEY[] = "askjfdlaskjfldsj";
-bool should_encrypt = false;
+char ENCRYPTION_KEY[100];
+char *encrypt_IV;
+char *decrypt_IV;
+FILE * encrypt_file;
 
 void return_error(char *error) {
 /*
@@ -104,23 +106,14 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
         dprintf(log_fd, "RECEIVED %d bytes: %s\n", read_val, buff);
     }
 
-    for (int i = 0; i < read_val; i++) {
-        if (buff[i] == '\n') {
-            char newline_buff[2] = {'\r', '\n'};
-            if (write(OUTPUT_FD, newline_buff, 2) == -1) {
-                return_error("write() to stdout");
-            }
-        } else {
-            if (should_encrypt) {
-                mcrypt_generic(td, buff+i, 1);
-            }
-            if (write(OUTPUT_FD, buff+i, 1) == -1) {
-                return_error("write() to stdout");
-            }
-        }
+    if (!from_keyboard && encrypt_file != NULL) {
+        // need to decrypt the buffer
+        mdecrypt_generic(decrypt_fd, &buff, read_val);
+    }
 
-        if (from_keyboard) {
-            // also echo to stdout
+    if (from_keyboard) {
+        // need to echo to stdout
+        for (int i = 0; i < read_val; i++) {
             if (buff[i] == '\r' || buff[i] == '\n') {
                 char newline_buff[2] = {'\r', '\n'};
                 if (write(STDOUT_FILENO, newline_buff, 2) == -1) {
@@ -130,6 +123,24 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
                 if (write(STDOUT_FILENO, buff+i, 1) == -1) {
                     return_error("write() to stdout");
                 }
+            }
+        }
+    }
+
+    if (from_keyboard && encrypt_file != NULL) {
+        // need to encrypt the buffer
+        mcrypt_generic(encrypt_fd, &buff, read_val);
+    }
+
+    for (int i = 0; i < read_val; i++) {
+        if (buff[i] == '\n') {
+            char newline_buff[2] = {'\r', '\n'};
+            if (write(OUTPUT_FD, newline_buff, 2) == -1) {
+                return_error("write() to stdout");
+            }
+        } else {
+            if (write(OUTPUT_FD, buff+i, 1) == -1) {
+                return_error("write() to stdout");
             }
         }
     }
@@ -227,20 +238,42 @@ void start_listening() {
 }
 
 void setup_encryption() {
-    should_encrypt = true;
+    encrypt_file = fopen(ENCRYPT_FILENAME, "r");
+    if (encrypt_file) {
+        fscanf(encrypt_file, "%s", ENCRYPTION_KEY);
+    }
 
     encrypt_fd = mcrypt_module_open(ENCRYPT_ALGORITHM, NULL, "cfb", NULL);
-    if (td==MCRYPT_FAILED) {
+    if (encrypt_fd==MCRYPT_FAILED) {
         return_error("mcrypt_module_open()");
     }
-    int size = mcrypt_enc_get_iv_size(td);
 
-    IV = malloc(size);
-    for (int i = 0; i < size; i++) {
-        IV[i] = rand();
+    decrypt_fd = mcrypt_module_open(ENCRYPT_ALGORITHM, NULL, "cfb", NULL);
+    if (decrypt_fd==MCRYPT_FAILED) {
+        return_error("mcrypt_module_open()");
     }
 
-    int j = mcrypt_generic_init(td, ENCRYPTION_KEY, 16, IV);
+    int encrypt_size = mcrypt_enc_get_iv_size(encrypt_fd);
+    int decrypt_size = mcrypt_enc_get_iv_size(decrypt_fd);
+    char vec[] = "12345";
+
+    encrypt_IV = malloc(encrypt_size);
+    for (int i = 0; i < encrypt_size; i++) {
+        encrypt_IV[i] = vec[i % 5];
+    }
+
+    decrypt_IV = malloc(decrypt_size);
+    for (int i = 0; i < encrypt_size; i++) {
+        decrypt_IV[i] = vec[i % 5];
+    }
+
+    int j = mcrypt_generic_init(encrypt_fd, ENCRYPTION_KEY, 16, encrypt_IV);
+    if (j < 0) {
+        mcrypt_perror(j);
+        return_error("mcrypt_generic_init()");
+    }
+
+    j = mcrypt_generic_init(decrypt_fd, ENCRYPTION_KEY, 16, decrypt_IV);
     if (j < 0) {
         mcrypt_perror(j);
         return_error("mcrypt_generic_init()");
@@ -283,6 +316,10 @@ void setup_socket() {
     poll_fds[1].events = POLLIN;
 }
 
+void term_handler() {
+    exit(0);
+}
+
 int main(int argc, char *argv[]) {
     int c;
     struct option long_options[] = {
@@ -312,6 +349,7 @@ int main(int argc, char *argv[]) {
             }
             case ENCRYPT: {
                 ENCRYPT_FILENAME = optarg;
+                setup_encryption();
                 break;
             }
             default: {
@@ -328,6 +366,7 @@ int main(int argc, char *argv[]) {
     }
 
     set_non_canonical_input_mode();
+    signal(SIGTERM, term_handler);
     setup_socket();
     start_listening();
 
