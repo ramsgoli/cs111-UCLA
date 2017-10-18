@@ -9,6 +9,7 @@ EMAIL: ramsgoli@gmail.com
 #include <stdlib.h>
 #include <termios.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -64,7 +65,8 @@ struct pollfd poll_fds[2];
 char ENCRYPT_ALGORITHM[] = "twofish";
 MCRYPT encrypt_fd;
 MCRYPT decrypt_fd;
-char ENCRYPTION_KEY[100];
+char *ENCRYPTION_KEY;
+int KEY_LENGTH;
 char *encrypt_IV;
 char *decrypt_IV;
 FILE * encrypt_file;
@@ -173,6 +175,16 @@ void process_shutdown() {
     }
 }
 
+void close_mcrypt() {
+/*
+Close all encrypt threads before shutdown
+ */
+    mcrypt_generic_deinit(encrypt_fd);
+    mcrypt_module_close(encrypt_fd);
+    mcrypt_generic_deinit(decrypt_fd);
+    mcrypt_module_close(decrypt_fd);
+}
+
 void set_non_canonical_input_mode() {
 /*
 Puts the keyboard (FD 0) in non-canonical input mode with no-echo
@@ -238,10 +250,22 @@ void start_listening() {
 }
 
 void setup_encryption() {
-    encrypt_file = fopen(ENCRYPT_FILENAME, "r");
-    if (encrypt_file) {
-        fscanf(encrypt_file, "%s", ENCRYPTION_KEY);
+    // encrypt_file = fopen(ENCRYPT_FILENAME, "r");
+    // if (encrypt_file) {
+    //     fscanf(encrypt_file, "%s", ENCRYPTION_KEY);
+    // }
+
+    int key_fd = open(ENCRYPT_FILENAME, O_RDONLY);
+    struct stat key;
+
+    fstat(key_fd, &key);
+    
+    ENCRYPTION_KEY = (char*) malloc(key.st_size);
+    if (read(key_fd, ENCRYPTION_KEY, key.st_size) < 0) {
+        return_error("read(1)");
     }
+
+    KEY_LENGTH = key.st_size;
 
     encrypt_fd = mcrypt_module_open(ENCRYPT_ALGORITHM, NULL, "cfb", NULL);
     if (encrypt_fd==MCRYPT_FAILED) {
@@ -267,17 +291,19 @@ void setup_encryption() {
         decrypt_IV[i] = vec[i % 5];
     }
 
-    int j = mcrypt_generic_init(encrypt_fd, ENCRYPTION_KEY, 16, encrypt_IV);
+    int j = mcrypt_generic_init(encrypt_fd, ENCRYPTION_KEY, KEY_LENGTH, encrypt_IV);
     if (j < 0) {
         mcrypt_perror(j);
         return_error("mcrypt_generic_init()");
     }
 
-    j = mcrypt_generic_init(decrypt_fd, ENCRYPTION_KEY, 16, decrypt_IV);
+    j = mcrypt_generic_init(decrypt_fd, ENCRYPTION_KEY, KEY_LENGTH, decrypt_IV);
     if (j < 0) {
         mcrypt_perror(j);
         return_error("mcrypt_generic_init()");
     }
+
+    atexit(close_mcrypt);
 }
 
 void setup_socket() {
