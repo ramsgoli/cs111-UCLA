@@ -108,7 +108,6 @@ PARAMS:
             // ^D
             // we close the write end of pipe but continue processing the input
             close(to_child_pipe[1]);
-            success = false;
         } else if (buff[i] == 3) {
             // ^C
             kill(SIGINT, child_pid);

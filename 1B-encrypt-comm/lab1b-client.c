@@ -18,6 +18,7 @@ EMAIL: ramsgoli@gmail.com
 #include <netdb.h>
 #include <poll.h>
 #include <signal.h>
+#include <mcrypt.h>
 
 // Shell options
 #define LOG 'l'
@@ -40,7 +41,7 @@ int log_fd = -1;
 char *ENCRYPT_FILENAME;
 
 // Buffer used to hold input data and write output data
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 512
 char buff[BUFFER_SIZE];
 
 // Which HOST we are connecting to. We will be connecting to localhost
@@ -58,6 +59,13 @@ struct hostent *server;
 // hold the pollfd structs that hold status information about
 // server communication and keyboard communication
 struct pollfd poll_fds[2];
+
+// Encryption initializations
+char ENCRYPT_ALGORITHM[] = "twofish";
+MCRYPT encrypt_fd;
+MCRYPT decrypt_fd;
+char ENCRYPTION_KEY[] = "askjfdlaskjfldsj";
+bool should_encrypt = false;
 
 void return_error(char *error) {
 /*
@@ -103,6 +111,9 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
                 return_error("write() to stdout");
             }
         } else {
+            if (should_encrypt) {
+                mcrypt_generic(td, buff+i, 1);
+            }
             if (write(OUTPUT_FD, buff+i, 1) == -1) {
                 return_error("write() to stdout");
             }
@@ -196,7 +207,7 @@ void start_listening() {
             // from keyboard
             // echo to the terminal and send to the socket
             if (!read_write(poll_fds[0].fd, sockfd, true)) {
-                exit(1);
+                exit(0);
             }
         }
 
@@ -204,7 +215,7 @@ void start_listening() {
             // from socket
             // echo to terminal
             if (!read_write(poll_fds[1].fd, STDOUT_FILENO, false)) {
-                exit(1);
+                exit(0);
             }
         }
 
@@ -212,6 +223,27 @@ void start_listening() {
             (poll_fds[1].revents & (POLLERR | POLLHUP))) {
                 exit(0);
         }
+    }
+}
+
+void setup_encryption() {
+    should_encrypt = true;
+
+    encrypt_fd = mcrypt_module_open(ENCRYPT_ALGORITHM, NULL, "cfb", NULL);
+    if (td==MCRYPT_FAILED) {
+        return_error("mcrypt_module_open()");
+    }
+    int size = mcrypt_enc_get_iv_size(td);
+
+    IV = malloc(size);
+    for (int i = 0; i < size; i++) {
+        IV[i] = rand();
+    }
+
+    int j = mcrypt_generic_init(td, ENCRYPTION_KEY, 16, IV);
+    if (j < 0) {
+        mcrypt_perror(j);
+        return_error("mcrypt_generic_init()");
     }
 }
 
