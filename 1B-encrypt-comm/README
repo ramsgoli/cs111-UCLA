@@ -1,3 +1,22 @@
 NAME: Ram Goli
 EMAIL: ramsgoli@gmail.com
 ID: 604751659
+
+CONTENTS:
+- lab1b-client.c: C source file that is the client program for our socket client. Supports a --encrypt argument, which accepts a key file to use for encryption, and a --log argument, which can be used to report any data sent and received over the socket connection
+
+- lab1b-server.c: C source file that is the server program for our tcp socket client. Supports a --encrypt argument, which accepts a file to use for encryption. When the server program accepts a connection from a client, it forks a new shell process and directs any output from the client to the shell process. It then redirects any output from the shell process back to the client
+
+- Makefile: Used to build the application binaries, as well create the tarball and push the current working directory back to its untarred state
+
+-my.key: A file that contains a key that is used for encrypting network traffic both on the client and the server
+
+- Readme: this file
+
+RESEARCH:
+I followed the simple example at https://linux.die.net/man/3/mcrypt to figure out how to encrypt and decrypt network traffic. 
+What I noticed was that the example program ( TWOFISH with 128 bit key ) initlializes a keysize of 16. 
+However, this is not the length of the key that they use in the example. 
+I tried using the value 16 for the keysize in my project as well, but the encryption and decryption never functioned correctly. 
+Instead, I computeted the keysize by using fstat() and then used that value in my mcrypt_generic_init() function call. 
+This allowed me to encrypt and decrypt correctly, so I am wondering why they specifically used a 128 bit keysize in the example.

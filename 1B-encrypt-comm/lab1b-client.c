@@ -99,6 +99,11 @@ bool read_write(int INPUT_FD, int OUTPUT_FD, bool from_keyboard) {
 Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
 */
     int read_val = read(INPUT_FD, buff, BUFFER_SIZE);
+
+    if (read_val == 0 && !from_keyboard) {
+        exit(0);
+    }
+
     if (read_val == -1) {
         return_error("read()");
     }
@@ -108,7 +113,7 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
         dprintf(log_fd, "RECEIVED %d bytes: %s\n", read_val, buff);
     }
 
-    if (!from_keyboard && encrypt_file != NULL) {
+    if (!from_keyboard && ENCRYPTION_KEY != NULL) {
         // need to decrypt the buffer
         mdecrypt_generic(decrypt_fd, &buff, read_val);
     }
@@ -129,7 +134,7 @@ Read bytes from INPUT_FD and write them one-by-one to OUTPUT_FD
         }
     }
 
-    if (from_keyboard && encrypt_file != NULL) {
+    if (from_keyboard && ENCRYPTION_KEY != NULL) {
         // need to encrypt the buffer
         mcrypt_generic(encrypt_fd, &buff, read_val);
     }
@@ -259,7 +264,7 @@ void setup_encryption() {
     struct stat key;
 
     fstat(key_fd, &key);
-    
+
     ENCRYPTION_KEY = (char*) malloc(key.st_size);
     if (read(key_fd, ENCRYPTION_KEY, key.st_size) < 0) {
         return_error("read(1)");

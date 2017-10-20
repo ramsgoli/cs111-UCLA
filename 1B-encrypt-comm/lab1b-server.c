@@ -131,12 +131,12 @@ PARAMS:
         return false;
     }
 
-    if (from_socket && encrypt_file != NULL) {
+    if (from_socket && ENCRYPTION_KEY != NULL) {
         // need to decrypt
         mdecrypt_generic(decrypt_fd, &buff, read_val);
     }
 
-    if (!from_socket && encrypt_file != NULL) {
+    if (!from_socket && ENCRYPTION_KEY != NULL) {
         // need to encrypt the buffer
         mcrypt_generic(encrypt_fd, &buff, read_val);
     }
@@ -240,6 +240,8 @@ void accept_connections() {
     } else if (child_pid == 0) { // child process
         close(to_child_pipe[1]);
         close(from_child_pipe[0]);
+
+        close(sockfd);
 
         dup2(to_child_pipe[0], STDIN_FILENO);
         dup2(from_child_pipe[1], STDOUT_FILENO);
