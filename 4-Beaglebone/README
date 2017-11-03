@@ -1,0 +1,20 @@
+NAME: Ram Goli
+EMAIL: ramsgoli@gmail.com
+ID: 604751659
+
+Contents:
+
+- my_beaglebone.jpg: a selfie of me and my beaglebone
+- connected.png: a screenshot showing the output of me running $hostname and $ifconfig in order to get the name of my beaglebone and display my working network connection. 
+- copy.png: a screenshot showing me copying a C source module from my host computer to the beaglebone
+- build_run.png: a screenshot showing me compiling and running a C executable on my beaglebone
+- git.png: a screenshot showing me cloning a git repository to my local beaglebone
+
+Notes:
+
+According to the instructions provided to us in the spec, I should have been able to ssh to the beaglebone at root@192.168.6.2. 
+However, even after installing the correct drivers and restarting my host computer as instructed, I still could not ssh to the beaglebone. 
+In order to fix the problem, I connected my host computer to the wifi signal created by the beaglebone. 
+I was then able to ssh to root@192.168.8.1, and this correctly opened up a ssh session from my host computer to the beaglebone.
+I have still not managed to be able to ssh into the beaglebone solely over a USB connection.
+This current solution, though works, is inconvenient because my host computer no longer can connect to the school internet while I am ssh'd into the beaglebone.
