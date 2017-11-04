@@ -12,17 +12,23 @@ EMAIL: ramsgoli@gmail.com
 #include <errno.h>
 #include <string.h>
 
-// command line options
-#define THREADS 't'
-#define ITERATIONS 'i'
-
-int num_threads = 1;
-int num_iterations = 1;
-
 // set up boolean definitions
 typedef int bool;
 #define true 1
 #define false 0
+
+// command line options
+#define THREADS 't'
+#define ITERATIONS 'i'
+#define YIELD 'y'
+#define SYNC 's'
+
+int num_threads = 1;
+int num_iterations = 1;
+bool opt_yield = false;
+
+pthread_mutex_t mutex;
+char sync_char = '-';
 
 // thread function arguments
 struct thread_args {
@@ -38,6 +44,9 @@ prints an error message in case bad arguments are passed on the command line
 
 void add(long long *pointer, long long value) {
     long long sum = *pointer + value;
+    if (opt_yield) {
+        sched_yield();
+    }
     *pointer = sum;
 }
 
@@ -56,12 +65,14 @@ int main(int argc, char *argv[]) {
     struct option long_options[] = {
         {"threads", required_argument, NULL, THREADS},
         {"iterations", required_argument, NULL, ITERATIONS},
+        {"yield", no_argument, NULL, YIELD},
+        {"sync", required_argument, NULL, SYNC},
         {0,0,0,0}
     };
 
     while (true) {
         int option_index = 0;
-        c = getopt_long(argc, argv, "t:i:", long_options, &option_index);
+        c = getopt_long(argc, argv, "t:i:ys:", long_options, &option_index);
 
         if (c == -1) {
             break;
@@ -75,6 +86,41 @@ int main(int argc, char *argv[]) {
             case ITERATIONS: {
                 num_iterations = (int)atoi(optarg);
                 break;
+            }
+            case YIELD: {
+                opt_yield = true;
+                break;
+            }
+            case SYNC: {
+                if (optarg) {
+                    switch (*optarg) {
+                        case 'm': {
+                            // mutex lock
+                            pthread_mutex_init(&mutex, NULL);
+                            sync_char = 'm';
+                            break;
+                        }
+                        case 's': {
+                            // spin lock
+                            sync_char = 's';
+                            break;
+                        }
+                        case 'c': {
+                            // GCC's own atomic built in
+                            sync_char = 'c';
+                            break;
+                        }
+                        default: {
+                            fprintf(stderr, "./lab2_add: invalid argument to `--sync' option\n");
+                            print_usage();
+                            exit(1);
+                        }
+                    }
+                } else {
+                    fprintf(stderr, "./lab2_add: --sync options requires an argument");
+                    print_usage();
+                    exit(1);
+                }
             }
             default: {
                 print_usage();
@@ -128,8 +174,47 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    // get the appropriate mode to print out
+    char *test_name = (char*) malloc(50);
+    switch (sync_char) {
+        case '-': {
+            if (opt_yield) {
+                test_name = "add-yield-none";
+            } else {
+                test_name = "add-none";
+            }
+            break;
+        }
+        case 's': {
+            if (opt_yield) {
+                test_name = "add-yield-s";
+            } else {
+                test_name = "add-s";
+            }
+            break;
+        }
+        case 'm': {
+            if (opt_yield) {
+                test_name = "add-yield-m";
+            } else {
+                test_name = "add-m";
+            }
+            break;
+        }
+        case 'c': {
+            if (opt_yield) {
+                test_name = "add-yield-c";
+            } else {
+                test_name = "add-c";
+            }
+            break;
+        }
+    }
+
     int num_operations = num_threads * num_iterations * 2;
     int total_runtime = end_tp.tv_nsec - start_tp.tv_nsec;
     int average_runtime = total_runtime / num_operations;
-    printf("%s,%d,%d,%d,%d,%d,%d\n", "add-none", num_threads, num_iterations, num_operations, total_runtime, average_runtime, *args.counter);
+    printf("%s,%d,%d,%d,%d,%d,%d\n", test_name, num_threads, num_iterations, num_operations, total_runtime, average_runtime, *args.counter);
+
+    exit(EXIT_SUCCESS);
 }
