@@ -28,7 +28,8 @@ int num_iterations = 1;
 bool opt_yield = false;
 
 pthread_mutex_t mutex;
-char sync_char = '-';
+int lock = 0;
+char sync_char = '.';
 
 // thread function arguments
 struct thread_args {
@@ -54,9 +55,49 @@ void *add_driver(void *args) {
     
     struct thread_args *struct_args = (struct thread_args*) args;
     for (int i = 0; i < num_iterations; i++) {
+        switch(sync_char) {
+            case '.': {
+                // regular add
+                add(struct_args->counter, 1);
+                add(struct_args->counter, -1);
+                break;
+            }
+            case 'm': {
+                // mutex add
+                pthread_mutex_lock(&mutex);
+                add(struct_args->counter, 1);
+                add(struct_args->counter, -1);
+                pthread_mutex_unlock(&mutex);
+                break;
+            }
+            case 's': {
+                // spin lock
+                while (__sync_lock_test_and_set(&lock, 1)) ;
+                add(struct_args->counter, 1);
+                add(struct_args->counter, -1);
+                __sync_lock_release(&lock);
+                break;
+            }
+            case 'c': {
+                long long old = *struct_args->counter;
+                while (old != __sync_val_compare_and_swap(struct_args->counter, old, old+1)) {
+                    old = *struct_args->counter;
+                    if (opt_yield) sched_yield();
+                }
+
+                old = *struct_args->counter;
+                while (old != __sync_val_compare_and_swap(struct_args->counter, old, old-1)) {
+                    old = *struct_args->counter;
+                    if (opt_yield) sched_yield();
+                }
+                break;
+            }
+        }
         add(struct_args->counter, 1);
         add(struct_args->counter, -1);
     }
+
+    return NULL;
 }
 
 int main(int argc, char *argv[]) {
@@ -121,6 +162,7 @@ int main(int argc, char *argv[]) {
                     print_usage();
                     exit(1);
                 }
+                break;
             }
             default: {
                 print_usage();
@@ -177,7 +219,7 @@ int main(int argc, char *argv[]) {
     // get the appropriate mode to print out
     char *test_name = (char*) malloc(50);
     switch (sync_char) {
-        case '-': {
+        case '.': {
             if (opt_yield) {
                 test_name = "add-yield-none";
             } else {
