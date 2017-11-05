@@ -2,3 +2,51 @@ NAME: Ram Goli
 ID: 604751659
 EMAIL: ramsgoli@gmail.com
 
+CONCERNS
+
+I could not get the sanity check to accurately report that lab2a-studentid-tar.gz was correctly built
+However, when I run the commands in my make file, the tarball is correctly created, so I am not sure why the sanity script
+reports that it is unable to be found
+
+QUESTIONS
+
+2.1.1
+--------------
+Because the probability of a race condition occuring is comparably small, it takes numerous repeated iterations before one actually occurs, thus causing the errors
+For a race codition to occur, the scheduler must precisely schedule the load, add, and store instructions such that two threads would enter this critical section at the same time.
+
+2.1.2
+--------------
+When a thread yields, it gives up the processor only to be scheduled at a later time. This has some overhead to it, and thus 
+we see an increase in execution time. It is not possible to get valid per-operation timings because yielding causes variable wait times, since
+it is up to the scheduler when the operation will be executed.
+
+2.1.3
+--------------
+The cost per operation drops because the MLFQ is able to recognize that these processes are CPU bound 
+rather than I/O bound, so they it will schedule each thread on shorter running queues. This means that the average time
+for each operation will drop as the threads spend more time being executed rather than waiting
+
+The correct cost can be observed when we increase the number of operations, for the reasons stated above.
+
+2.1.4
+--------------
+With low number of threads, there is less waiting simply because we have less parallel executing threads. When we increase 
+the number of threads, more threads are waiting for each other before completing their work. The process of switching threads also
+adds some overhead, and this cost grows when we add more and more threads.
+
+2.2.1
+--------------
+The add version begins linear, sloping upwards, but levels off at the highest number of threads increases.
+The list version continues to slope upwards constantly. Both curves show that as the number of threads increases,
+the cost per operation also increases. This is because threads must wait to be scheduled in order to execute their operation.
+
+2.2.2
+--------------
+Spin locks offer worse performance because as we learned in class, spin locks cause the processor to aimlessly
+spin and occupy resources without accomplishing anything. We see that the spin lock performs reasonably on 
+a small number of threads because there are not that many threads that are spinning to begin with,
+but as the number increases, the processor spends less time performing actual work. 
+
+The add curve grows for similar reasons during the spin-lock testing. Spin locks perform better with lower number of threads in both 
+instances

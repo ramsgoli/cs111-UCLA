@@ -26,8 +26,7 @@ typedef int bool;
 
 // thread function arguments
 typedef struct thread_args {
-    long long *counter;
-    bool thread_num;
+    int thread_num;
     SortedList_t *head;
     SortedListElement_t *elements;
 } thread_args_t;
@@ -48,10 +47,10 @@ prints an error message in case bad arguments are passed on the command line
 }
 
 void *add_to_list(void *pointer) {
-    thread_args_t* args = (thread_args_t *) pointer;
+    thread_args_t *args = (thread_args_t *) pointer;
 
     // we access num_iterations elements starting at the index of the thread_num
-    for (int i = args->thread_num * num_iterations; i < (args->thread_num + 1) * num_iterations; i++) {
+    for (int i = (args->thread_num * num_iterations); i < ((args->thread_num + 1) * num_iterations); i++) {
         switch (sync_char) {
             case '.': {
                 SortedList_insert(args->head, &(args->elements[i]));
@@ -70,34 +69,34 @@ void *add_to_list(void *pointer) {
                 break;
             }
         }
+    }
 
-        switch (sync_char) {
-            case '.': {
-                if (SortedList_length(args->head) == -1) {
-                    exit(1);
-                }
-                break;
+    switch (sync_char) {
+        case '.': {
+            if (SortedList_length(args->head) == -1) {
+                exit(2);
             }
-            case 'm': {
-                pthread_mutex_lock(&mutex);
-                if (SortedList_length(args->head) == -1) {
-                    exit(1);
-                }
-                pthread_mutex_unlock(&mutex);
-                break;
+            break;
+        }
+        case 'm': {
+            pthread_mutex_lock(&mutex);
+            if (SortedList_length(args->head) == -1) {
+                exit(2);
             }
-            case 's': {
-                while (__sync_lock_test_and_set(&lock, 1) == 1) ;
-                if (SortedList_length(args->head) == -1) {
-                    exit(1);
-                }
-                __sync_lock_release(&lock);	    
-                break;
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
+        case 's': {
+            while (__sync_lock_test_and_set(&lock, 1) == 1) ;
+            if (SortedList_length(args->head) == -1) {
+                exit(2);
             }
+            __sync_lock_release(&lock);	    
+            break;
         }
     }
         
-    for (int i = (args->thread_num) * num_threads; i < (args->thread_num + 1) * num_iterations; i++) {
+    for (int i = ((args->thread_num) * num_iterations); i < ((args->thread_num + 1) * num_iterations); i++) {
         switch (sync_char) {
             case '.': {
                 if (SortedList_lookup(args->head, args->elements[i].key) == 0) {
@@ -137,23 +136,27 @@ void *add_to_list(void *pointer) {
 }
 
 char* sync_options() {
-    char* first_string = (char*)malloc(100);
-    bzero(first_string, 100);
+    char* sync = (char*)malloc(5);
+    memset(sync, 0, 5);
+
     switch (sync_char) {
-    case '.':
-	first_string[0] = 'n';
-	first_string[1] = 'o';
-	first_string[2] = 'n';
-	first_string[3] = 'e';
-	break;
-    case 's':
-	first_string[0] = 's';	
-	break;
-    case 'm':
-	first_string[0] = 'm';	
-	break;
+        case '.': {
+            sync[0] = 'n';
+            sync[1] = 'o';
+            sync[2] = 'n';
+            sync[3] = 'e';
+            break;
+        }
+        case 's': {
+            sync[0] = 's';
+            break;
+        }
+        case 'm': {
+            sync[0] = 'm'; 
+            break;
+        }
     }
-    return first_string;
+    return sync;
 }
 
 char* yield_options() {
@@ -213,6 +216,7 @@ int main(int argc, char *argv[]) {
                 break;
             }
             case YIELD: {
+                opt_yield = 0x00;
                 int len = strlen(optarg);
                 for (int i = 0; i < len; i++) {
                     switch (optarg[i]) {
@@ -301,11 +305,8 @@ int main(int argc, char *argv[]) {
     thread_args_t t_args[num_threads];
     pthread_t threads[num_threads];
 
-    long long counter = 0;
-
     // create all threads
     for (int i = 0; i < num_threads; i++) {
-        t_args[i].counter = &counter;
         t_args[i].head = head;
         t_args[i].elements = elements;
         t_args[i].thread_num = i;

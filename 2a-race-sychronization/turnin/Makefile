@@ -6,16 +6,19 @@ build: add list
 
 add: lab2_add.c
 	gcc -Wall -Wextra -pthread lab2_add.c -o lab2_add	
+
 list: lab2_list.c SortedList.c
 	gcc -Wall -Wextra -pthread -g lab2_list.c SortedList.c -o lab2_list
+
 clean:
 	rm -rf lab2_list
 	rm -rf lab2_add
 	rm -rf lab2a-604751659.tar.gz
 	rm -rf *.png
 	rm -rf *.csv
+
 dist: build graphs
-	tar -cvzf lab2a-604751659.tar.gz lab2_add lab2_list README Makefile lab2_add.c SortedList.h SortedList.c lab2_list.c lab2_add.csv lab2_list.csv *.png run_tests.sh
+	tar -cvzf lab2a-604751659.tar.gz README Makefile lab2_add.c SortedList.h SortedList.c lab2_list.c lab2_add.csv lab2_list.csv *.png run_tests.sh
 
 graphs: tests
 	./lab2_add.gp
