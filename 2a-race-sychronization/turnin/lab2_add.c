@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
     int num_operations = num_threads * num_iterations * 2;
     int total_runtime = end_tp.tv_nsec - start_tp.tv_nsec;
     int average_runtime = total_runtime / num_operations;
-    printf("%s,%d,%d,%d,%d,%d,%d\n", test_name, num_threads, num_iterations, num_operations, total_runtime, average_runtime, *args.counter);
+    printf("%s,%d,%d,%d,%d,%d,%lld\n", test_name, num_threads, num_iterations, num_operations, total_runtime, average_runtime, *args.counter);
 
     exit(EXIT_SUCCESS);
 }
