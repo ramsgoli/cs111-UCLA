@@ -21,4 +21,28 @@ Where do you believe most of the time/cycles are being spent in the high-thread 
 Where do you believe most of the time/cycles are being spent in the high-thread mutex tests?
 -   
 
+2.3.2 - Execution Profiling
+------------------------------------------------
+Where (what lines of code) are consuming most of the cycles when the spin-lock version of the list exerciser is run with a large number of threads?
+-   Using pprof shows us the following results:
+
+struct timespec start_tp;
+     .      1   97:                 int ret = clock_gettime(CLOCK_MONOTONIC, &start_tp);
+     .      .   98:                 if (ret == -1) {
+     .      .   99:                     int err = errno;
+     .      .  100:                     fprintf(stderr, "Error calling clock_gettime(): %s", strerror(err));
+     .      .  101:                     exit(1);
+     .      .  102:                 }
+   517    517  103:                 while (__sync_lock_test_and_set(args->sublist_args[sublist_index].lock, 1) == 1) ;
+     .      .  104:
+     .      .  105:                 struct timespec end_tp;
+
+There were 690 total interrupts, and 517 came spinning while waiting for the lock. This operation (the __sync_lock_test_and_set) 
+is expensive with a large number of threads beause they saturate the CPU. Every thread that is scheduled which cannot
+obtain the lock will simply eat up CPU cycles.
+
+ 2.3.3 - Mutex Wait Time
+ ----------------------------------------------
+ Why does the average lock-wait time rise so dramatically with the number of contending threads?
+ -  Since there are more threads, the total time it will take for one thread 
 

@@ -8,7 +8,7 @@ add: lab2_add.c
 	gcc -Wall -Wextra -pthread lab2_add.c -o lab2_add	
 
 list: lab2_list.c SortedList.c
-	gcc -Wall -Wextra -pthread -g lab2_list.c SortedList.c -o lab2_list
+	gcc -L`echo ~/`lib -lprofiler -Wall -Wextra -pthread -g lab2_list.c SortedList.c -o lab2_list
 
 clean:
 	rm -rf lab2_list
@@ -26,3 +26,6 @@ graphs: tests
 
 tests: build run_tests.sh
 	./run_tests.sh
+
+spinlock_list_test:
+	
