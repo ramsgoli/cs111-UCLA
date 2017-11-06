@@ -1,0 +1,24 @@
+NAME: Ram Goli
+ID: 604751659
+EMAIL: ramsgoli@gmail.com
+
+QUESTIONS
+
+2.3.1 - Cycles in the basic list implementation
+---------------------------------------------------
+Where do you believe most of the cycles are spent in the 1 and 2-thread list tests ?
+-   Most of the cycles are spent executing the list operations, since there is not much contention
+
+Why do you believe these to be the most expensive parts of the code?
+// TODO
+
+Where do you believe most of the time/cycles are being spent in the high-thread spin-lock tests?
+-   Most of the time is spent in the wasteful 'spinning.' In the high-thread tests, 
+    there are more threads that are being scheduled. But since the lock is only
+    held by one thread, the many other threads spend their scheduled time just spinning, and 
+    thus less operations are able to be performed overall.
+
+Where do you believe most of the time/cycles are being spent in the high-thread mutex tests?
+-   
+
+
