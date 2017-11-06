@@ -14,8 +14,6 @@ clean:
 	rm -rf lab2_list
 	rm -rf lab2_add
 	rm -rf lab2a-604751659.tar.gz
-	rm -rf *.png
-	rm -rf *.csv
 
 dist: build graphs
 	tar -cvzf lab2a-604751659.tar.gz README Makefile lab2_add.c SortedList.h SortedList.c lab2_list.c lab2_add.csv lab2_list.csv *.png run_tests.sh

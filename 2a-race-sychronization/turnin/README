@@ -8,6 +8,12 @@ I could not get the sanity check to accurately report that lab2a-studentid-tar.g
 However, when I run the commands in my make file, the tarball is correctly created, so I am not sure why the sanity script
 reports that it is unable to be found
 
+EDIT:
+
+After a fellow peer on piazza mentioned that we must include the .gp files in our tarball, my sanity check passed and 
+the tarball was succesfully generated. 
+
+
 QUESTIONS
 
 2.1.1
