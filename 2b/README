@@ -2,6 +2,20 @@ NAME: Ram Goli
 ID: 604751659
 EMAIL: ramsgoli@gmail.com
 
+CONTENTS
+
+lab2_list.c - Source for lab2_list executable
+Makefile - supports different targets to build the executable, run tests, etc
+lab2b_list.csv - The results of running the specifed tests
+profie.out - execution profiling report showing where time was spent in the un-partitioned spin-lock implementation.
+graphs (.png files) - created by gnuplot(1) on the above csv data showing:
+  lab2b_1.png ... throughput vs. number of threads for mutex and spin-lock synchronized list operations.
+  lab2b_2.png ... mean time per mutex wait and mean time per operation for mutex-synchronized list operations.
+  lab2b_3.png ... successful iterations vs. threads for each synchronization method.
+  lab2b_4.png ... throughput vs. number of threads for mutex synchronized partitioned lists.
+  lab2b_5.png ... throughput vs. number of threads for spin-lock-synchronized partitioned lists.
+
+
 QUESTIONS
 
 2.3.1 - Cycles in the basic list implementation
@@ -10,7 +24,8 @@ Where do you believe most of the cycles are spent in the 1 and 2-thread list tes
 -   Most of the cycles are spent executing the list operations, since there is not much contention
 
 Why do you believe these to be the most expensive parts of the code?
-// TODO
+-   Because we do not have much contention in the low thread cases, the cpu does not have to spend a lot of time
+    performing context switches. It is able to schedule the threads quickly to perform the instructions in the add_to_list function
 
 Where do you believe most of the time/cycles are being spent in the high-thread spin-lock tests?
 -   Most of the time is spent in the wasteful 'spinning.' In the high-thread tests, 
@@ -19,14 +34,15 @@ Where do you believe most of the time/cycles are being spent in the high-thread 
     thus less operations are able to be performed overall.
 
 Where do you believe most of the time/cycles are being spent in the high-thread mutex tests?
--   
+-   Most of the cycles are spent in the actual critical section. This is because threads only are executing
+    if they have obtained the mutex, else they are put to sleep.
 
 2.3.2 - Execution Profiling
 ------------------------------------------------
 Where (what lines of code) are consuming most of the cycles when the spin-lock version of the list exerciser is run with a large number of threads?
 -   Using pprof shows us the following results:
 
-struct timespec start_tp;
+                                    struct timespec start_tp;
      .      1   97:                 int ret = clock_gettime(CLOCK_MONOTONIC, &start_tp);
      .      .   98:                 if (ret == -1) {
      .      .   99:                     int err = errno;
@@ -43,6 +59,38 @@ obtain the lock will simply eat up CPU cycles.
 
  2.3.3 - Mutex Wait Time
  ----------------------------------------------
- Why does the average lock-wait time rise so dramatically with the number of contending threads?
- -  Since there are more threads, the total time it will take for one thread 
+Why does the average lock-wait time rise so dramatically with the number of contending threads?
+-  Since there are more threads, the total time it will take for one thread to obtain the lock will increase,
+   due to the scheduler needing to schedule all threads to run in a fair manner
 
+Why does the completion time per operation rise (less dramatically) with the number of contending threads?
+-   There is more overhead now in context switching all the numerous threads. Because of this, it takes more time
+    for the operations that we are intersted in (insert, lookup, delete) to actually complete
+
+How is it possible for the wait time per operation to go up faster (or higher) than the completion time per operation
+-   The number of operations that are being executed per second should not increase too much because the scheduler still
+    does a good job of making sure that there is a task that is running at every moment. It may take longer to figure out
+    which task that should be simply because as the number of threads increases, it will take longer for the scheduling algorithm 
+    to find the right one to run. The wait-time-per-mutex rises much more rapidly because it is a measure of how long any single
+    thread must wait, which obviously will rise quickly as the number of overall threads increases
+
+2.3.4 - Performance of Partitioned Lists
+--------------------------------------------------
+
+Explain the change in performance of the synchronized methods as a function of the number of lists.
+-   As the number of lists increased, we were able to obtain a higher number of operations
+    per second. This is because we have a finer-grain lock that enables us to synchronously work
+    on several parts of the list at once, instead of having to lock the whole list up every time
+
+Should the throughput continue increasing as the number of lists is further increased? If not, explain why not.
+-   It should initially increase but it will not increase forever. If we were to increase the number of lists past the number of available threads,
+    we would not see much of a performance benefit because each thread cannot operate on two lists at once. We still require a context switch
+    in order for a new thread to take up a new list
+
+It seems reasonable to suggest the throughput of an N-way partitioned list should be equivalent to the throughput of a single list with fewer (1/N) threads. 
+Does this appear to be true in the above curves? If not, explain why not.
+-   This initially seems to be true but the curves suggest that as the number of threads increases, the throuput of the N-way partitioned lists
+    will be lower than the throughput of a single list with fewer threads. 
+    We see that with n > w lists and an increasing number of threads, the throughput of the mutex-lock and spin-lock implementations continue
+    to drop. This is simply due to the reasons stated above; as the amount of contention increases, more time is spent context switching and 
+    determining the next thread to run.
