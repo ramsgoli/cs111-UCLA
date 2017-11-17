@@ -1,0 +1,10 @@
+NAME: Ram Goli
+ID: 604751659
+EMAIL: ramsgoli@gmail.com
+
+CONTENTS:
+
+- lab4b.c: Source code for lab4b
+- Makefile: contains various targets to build executable, a tarball, run a smoke test, and clean
+- tests.sh: A bash script that runs a quick smoke test
+
